@@ -1,16 +1,18 @@
+// import { runBasicTests } from "@auth/adapter-test"
 import { runBasicTests } from "utils/adapter"
 import { AstraDBAdapter, format, defaultCollections } from "../src"
 import type { AstraDBConfig } from "../src"
-import { AstraDB } from "@datastax/astra-db-ts"
-
-jest.setTimeout(30000) // Collection creation might be slow
+console.log("object :>> ", process.env.ASTRA_DB_ID)
+if (!process.env.ASTRA_DB_ID) throw new TypeError("ASTRA_DB_ID is missing")
+if (!process.env.ASTRA_DB_APPLICATION_TOKEN)
+  throw new TypeError("ASTRA_DB_APPLICATION_TOKEN is missing")
 
 const api = {
   dbId: process.env.ASTRA_DB_ID,
-  token: process.env.ASTRA_DB_APPLICATION_TOKEN,
   region: "us-east-2",
   keyspace: "test",
-} satisfies AstraDBConfig
+  token: process.env.ASTRA_DB_APPLICATION_TOKEN,
+} satisfies AstraDBConfig["api"]
 
 const baseUrl = `https://${api.dbId}-${api.region}.apps.astra.datastax.com/api/json/v1/${api.keyspace}`
 
@@ -19,34 +21,66 @@ const users = `${baseUrl}/${defaultCollections.users}`
 const accounts = `${baseUrl}/${defaultCollections.accounts}`
 const tokens = `${baseUrl}/${defaultCollections.verificationTokens}`
 
-const astra = new AstraDB(api.token, api.dbId, api.region, api.keyspace)
+function init(body: any) {
+  return {
+    method: "post",
+    headers: {
+      "x-cassandra-token": api.token,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  } satisfies RequestInit
+}
+
+jest.setTimeout(30000)
 
 runBasicTests({
-  adapter: AstraDBAdapter(api),
+  adapter: AstraDBAdapter({ api }),
   db: {
     async connect() {
-      for await (const name of Object.keys(defaultCollections))
-        await astra.createCollection(name)
+      await Promise.all(
+        Object.keys(defaultCollections).map(async (name) => {
+          await fetch(baseUrl, init({ createCollection: { name } }))
+        })
+      )
     },
     async disconnect() {
-      for await (const name of Object.keys(defaultCollections))
-        await astra.dropCollection(name)
-    },
-    async user(_id: string) {
-      const collection = await astra.collection(users)
-      return format.from(await collection.findOne({ _id }), true)
-    },
-    async account(filter) {
-      const collection = await astra.collection(accounts)
-      return format.from(await collection.findOne({ filter }))
+      await Promise.all(
+        Object.keys(defaultCollections).map(async (name) => {
+          await fetch(baseUrl, init({ deleteCollection: { name } }))
+        })
+      )
     },
     async session(sessionToken) {
-      const collection = await astra.collection(sessions)
-      return format.from(await collection.findOne({ filter: { sessionToken } }))
+      return format.from(
+        await fetch(
+          sessions,
+          init({ findOne: { filter: { sessionToken } } })
+        ).then((res) => res.json())
+      )
+    },
+    async user(id: string) {
+      return format.from(
+        await fetch(users, init({ findOne: { filter: { id } } })).then((res) =>
+          res.json()
+        )
+      )
+    },
+    async account(filter) {
+      return format.from(
+        await fetch(accounts, init({ findOne: { filter } })).then((res) =>
+          res.json()
+        )
+      )
     },
     async verificationToken(filter) {
-      const collection = await astra.collection(tokens)
-      return format.from(await collection.findOne({ filter }))
+      const token = format.from(
+        await fetch(tokens, init({ findOne: { filter } })).then((res) =>
+          res.json()
+        )
+      )
+      delete token?.id
+      return token
     },
   },
 })

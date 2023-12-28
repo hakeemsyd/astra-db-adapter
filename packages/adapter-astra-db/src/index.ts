@@ -15,6 +15,45 @@
  * @module @auth/astra-db-adapter
  */
 
+/**
+ * ## Setup
+ *
+ * Require the mentioned collections in the astra Database:
+ * "users"
+ * "sessions"
+ * "accounts"
+ * "verificationTokens"
+ *
+ * How to create the required collections:
+ * By Using this bash script.
+ * paste it in a file_name.sh
+ * make sure to make it executable by chmod +x file_name.sh
+ * then run the bash script by ./file_name.sh
+ *
+ * ```bash
+ * #!/bin/bash
+ * export ASTRA_DB_ID="YOUR_ASTRA_DB_ID"
+ * export ASTRA_DB_REGION="YOUR_ASTRA_DB_REGION"
+ * export ASTRA_DB_KEYSPACE="YOUR_ASTRA_DB_KEYSPACE"
+ * export ASTRA_DB_APPLICATION_TOKEN="YOUR_ASTRA_DB_APPLICATION_TOKEN"
+ * export ASTRA_URL="https://$ASTRA_DB_ID-$ASTRA_DB_REGION.apps.astra.datastax.com/api/json/v1/$ASTRA_DB_KEYSPACE"
+ * collections=("users" "accounts" "sessions" "verificationTokens")
+ * for collection in "${collections[@]}"
+ * do
+ *   curl -X POST "$ASTRA_URL" \
+ *       -H "x-cassandra-token: $ASTRA_DB_APPLICATION_TOKEN" \
+ *       -H "Content-Type: application/json" \
+ *       -d "{\"createCollection\": {\"name\": \"$collection\"}}"
+ * done
+ * ```
+ *
+ * ### required environment variables:
+ * ASTRA_DB_ID
+ * ASTRA_DB_REGION
+ * ASTRA_DB_KEYSPACE
+ * ASTRA_DB_APPLICATION_TOKEN
+ */
+
 import type {
   Adapter,
   AdapterAccount,
@@ -109,44 +148,6 @@ function fetchClient(api: AstraDBConfig["api"]) {
   }
 }
 
-/**
- * ## Setup
- *
- * Require the mentioned collections in the astra Database:
- * "users"
- * "sessions"
- * "accounts"
- * "verificationTokens"
- *
- * How to create the required collections:
- * By Using this bash script.
- * paste it in a file_name.sh
- * make sure to make it executable by chmod +x file_name.sh
- * then run the bash script by ./file_name.sh
- *
- * ```bash
- * #!/bin/bash
- * export ASTRA_DB_ID="YOUR_ASTRA_DB_ID"
- * export ASTRA_DB_REGION="YOUR_ASTRA_DB_REGION"
- * export ASTRA_DB_KEYSPACE="YOUR_ASTRA_DB_KEYSPACE"
- * export ASTRA_DB_APPLICATION_TOKEN="YOUR_ASTRA_DB_APPLICATION_TOKEN"
- * export ASTRA_URL="https://$ASTRA_DB_ID-$ASTRA_DB_REGION.apps.astra.datastax.com/api/json/v1/$ASTRA_DB_KEYSPACE"
- * collections=("users" "accounts" "sessions" "verificationTokens")
- * for collection in "${collections[@]}"
- * do
- *   curl -X POST "$ASTRA_URL" \
- *       -H "x-cassandra-token: $ASTRA_DB_APPLICATION_TOKEN" \
- *       -H "Content-Type: application/json" \
- *       -d "{\"createCollection\": {\"name\": \"$collection\"}}"
- * done
- * ```
- *
- * ### required environment variables:
- * ASTRA_DB_ID
- * ASTRA_DB_REGION
- * ASTRA_DB_KEYSPACE
- * ASTRA_DB_APPLICATION_TOKEN
- */
 export function AstraDBAdapter(config: AstraDBConfig): Adapter {
   const { api } = config
   const collections = { ...defaultCollections, ...config.collections }
